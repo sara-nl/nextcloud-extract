@@ -29,8 +29,9 @@
 *  **Note :** Encrypted files are not supported yet
 ]]></description>
 
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <licence>agpl</licence>
+    <!-- moeten we dit niet aanpassen naar het emailadres van Surf? -->
     <author mail="paulereverend@gmail.com">Paul Lereverend</author>
     <namespace>Extract</namespace>
     <category>files</category>
@@ -38,6 +39,7 @@
     <website>https://github.com/PaulLereverend/NextcloudExtract</website>
     <bugs>https://github.com/PaulLereverend/NextcloudExtract/issues</bugs>
     <dependencies>
-        <nextcloud min-version="29" max-version="32"/>
+        <php min-version="8.2" max-version="8.5"/>
+        <nextcloud min-version="31" max-version="34"/>
     </dependencies>
 </info>
