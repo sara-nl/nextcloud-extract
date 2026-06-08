@@ -1,7 +1,5 @@
-# This file is licensed under the Affero General Public License version 3 or
-# later. See the COPYING file.
-# @author Bernhard Posselt <dev@bernhard-posselt.com>
-# @copyright Bernhard Posselt 2016
+# SPDX-FileCopyrightText: Bernhard Posselt <dev@bernhard-posselt.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Generic Makefile for building and packaging a Nextcloud app which uses npm and
 # Composer.
@@ -39,16 +37,69 @@
 #        "build": "node node_modules/gulp-cli/bin/gulp.js"
 #    },
 
-app_name=$(notdir $(CURDIR))
+app_name=extract
+app_dir_name=$(notdir $(CURDIR))
 build_tools_directory=$(CURDIR)/build/tools
 source_build_directory=$(CURDIR)/build/artifacts/source
 source_package_name=$(source_build_directory)/$(app_name)
-appstore_build_directory=$(CURDIR)/build/artifacts/appstore
-appstore_package_name=$(appstore_build_directory)/$(app_name)
+appstore_build_directory=$(CURDIR)/build/artifacts/app
 npm=$(shell which npm 2> /dev/null)
 composer=$(shell which composer 2> /dev/null)
 
-all: build
+all: clean dev-setup build-js-production
+
+# Dev env management
+dev-setup: clean npm-init
+
+npm-init:
+	npm ci
+
+npm-update:
+	npm update
+
+# Building
+build-js:
+	npm run dev
+
+build-js-production:
+	npm run build
+
+watch-js:
+	npm run watch
+
+# Linting
+lint-fix:
+	npm run lint:fix
+
+lint-fix-watch:
+	npm run lint:fix-watch
+
+clean-git: clean
+	git checkout -- dist
+
+# Code sniffing: PSR-12 is followed 
+# full check, gives all errors and warnings
+.PHONY: php-codesniffer-full
+php-codesniffer-full:
+	$(CURDIR)/vendor/bin/phpcs appinfo/ lib/ templates/ tests/docker/integration-tests/src --standard=PSR12 --report=full
+
+# check for errors only, ignoring warnings
+.PHONY: php-codesniffer-errors
+php-codesniffer-errors:
+	$(CURDIR)/vendor/bin/phpcs \
+		appinfo/ \
+		lib/ \
+		templates/ --standard=PSR12 --report=full --warning-severity=0
+		# TODO tests/docker/integration-tests/src --standard=PSR12 --report=full --warning-severity=0
+
+# should fix (most) errors
+.PHONY: php-codesniffer-errors-fix
+php-codesniffer-errors-fix:
+	$(CURDIR)/vendor/bin/phpcbf \
+		appinfo/ \
+		lib/ \
+		templates/ --standard=PSR12
+		# TODO tests/docker/integration-tests/src --standard=PSR12
 
 # Fetches the PHP and JS dependencies and compiles the JS. If no composer.json
 # is present, the composer step is skipped, if no package.json or js/package.json
@@ -75,10 +126,8 @@ ifeq (, $(composer))
 	curl -sS https://getcomposer.org/installer | php
 	mv composer.phar $(build_tools_directory)
 	php $(build_tools_directory)/composer.phar install --prefer-dist
-	php $(build_tools_directory)/composer.phar update --prefer-dist
 else
 	composer install --prefer-dist
-	composer update --prefer-dist
 endif
 
 # Installs npm dependencies
@@ -115,50 +164,97 @@ dist:
 source:
 	rm -rf $(source_build_directory)
 	mkdir -p $(source_build_directory)
-	tar cvz --exclude-vcs \
+	tar cvzf $(source_package_name).tar.gz \
+	--exclude-vcs \
 	--exclude="../$(app_name)/build" \
 	--exclude="../$(app_name)/js/node_modules" \
 	--exclude="../$(app_name)/node_modules" \
 	--exclude="../$(app_name)/*.log" \
 	--exclude="../$(app_name)/js/*.log" \
-	-f $(source_package_name).tar.gz ../$(app_name) \
+	../$(app_name) \
 
 # Builds the source package for the app store, ignores php and js tests
-.PHONY: appstore
-appstore:
+# command: make version={version_number} buildapp
+# concatenate cd, ls and tar commands with '&&' otherwise the script context will remain the root instead of build
+.PHONY: buildapp
+buildapp:
+	make check-version
+
+	version=$(version)
+
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)
-	tar cvz --exclude-vcs \
-	--exclude="../$(app_name)/build" \
-	--exclude="../$(app_name)/src" \
-	--exclude="../$(app_name)/tests" \
-	--exclude="../$(app_name)/Makefile" \
-	--exclude="../$(app_name)/*.log" \
-	--exclude="../$(app_name)/phpunit*xml" \
-	--exclude="../$(app_name)/composer.*" \
-	--exclude="../$(app_name)/js/node_modules" \
-	--exclude="../$(app_name)/js/tests" \
-	--exclude="../$(app_name)/js/test" \
-	--exclude="../$(app_name)/js/*.log" \
-	--exclude="../$(app_name)/js/package.json" \
-	--exclude="../$(app_name)/js/bower.json" \
-	--exclude="../$(app_name)/js/karma.*" \
-	--exclude="../$(app_name)/js/protractor.*" \
-	--exclude="../$(app_name)/package.json" \
-	--exclude="../$(app_name)/bower.json" \
-	--exclude="../$(app_name)/karma.*" \
-	--exclude="../$(app_name)/protractor\.*" \
-	--exclude="../$(app_name)/.*" \
-	--exclude="../$(app_name)/js/.*" \
-	-f $(appstore_package_name)_${version}.tar.gz ../$(app_name) \
+	cd build &&	\
+	ln -s ../ $(app_name) && \
+	tar cvzfh $(appstore_build_directory)/$(app_name)_$(version).tar.gz \
+	--exclude="$(app_name)/build" \
+	--exclude="$(app_name)/tests" \
+	--exclude="$(app_name)/src" \
+	--exclude="$(app_name)/vite.config.js" \
+	--exclude="$(app_name)/*.log" \
+	--exclude="$(app_name)/phpunit*xml" \
+	--exclude="$(app_name)/composer.*" \
+	--exclude="$(app_name)/node_modules" \
+	--exclude="$(app_name)/js/node_modules" \
+	--exclude="$(app_name)/js/tests" \
+	--exclude="$(app_name)/js/test" \
+	--exclude="$(app_name)/js/*.log" \
+	--exclude="$(app_name)/js/package.json" \
+	--exclude="$(app_name)/js/bower.json" \
+	--exclude="$(app_name)/js/karma.*" \
+	--exclude="$(app_name)/js/protractor.*" \
+	--exclude="$(app_name)/package.json" \
+	--exclude="$(app_name)/bower.json" \
+	--exclude="$(app_name)/karma.*" \
+	--exclude="$(app_name)/protractor\.*" \
+	--exclude="$(app_name)/.*" \
+	--exclude="$(app_name)/js/.*" \
+	--exclude-vcs \
+	$(app_name) && \
+	rm $(app_name)
+
+# Builds the source package for the app store, includes artifacts required for tests
+# command: make version={version_number} buildapp
+# concatenate cd, ls and tar commands with '&&' otherwise the script context will remain the root instead of build
+.PHONY: buildapp-tests
+buildapp-tests:
+	make check-version
+	
+	version=$(version)
+
+	rm -rf $(appstore_build_directory)
+	mkdir -p $(appstore_build_directory)
+	cd build &&	\
+	ln -s ../ $(app_name) && \
+	tar cvzfh $(appstore_build_directory)/$(app_name)_$(version).tar.gz \
+	--exclude="$(app_name)/build" \
+	--exclude="$(app_name)/*.log" \
+	--exclude="$(app_name)/node_modules" \
+	--exclude="$(app_name)/js/node_modules" \
+	--exclude="$(app_name)/js/tests" \
+	--exclude="$(app_name)/js/test" \
+	--exclude="$(app_name)/js/*.log" \
+	--exclude="$(app_name)/js/package.json" \
+	--exclude="$(app_name)/js/bower.json" \
+	--exclude="$(app_name)/js/karma.*" \
+	--exclude="$(app_name)/js/protractor.*" \
+	--exclude="$(app_name)/package.json" \
+	--exclude="$(app_name)/bower.json" \
+	--exclude="$(app_name)/karma.*" \
+	--exclude="$(app_name)/protractor\.*" \
+	--exclude="$(app_name)/.*" \
+	--exclude="$(app_name)/js/.*" \
+	--exclude-vcs \
+	$(app_name) && \
+	rm $(app_name)
 
 .PHONY: test
 test: composer
+	$(CURDIR)/vendor/bin/phplint ./ --exclude=vendor
 	$(CURDIR)/vendor/phpunit/phpunit/phpunit -c phpunit.xml
-	$(CURDIR)/vendor/phpunit/phpunit/phpunit -c phpunit.integration.xml
 
 check-version:
 	@if [ "${version}" = "" ]; then\
-		echo "Error: You must set version, eg. make -e version=v0.0.1 appstore";\
+		echo "Error: You must set version, eg. make -e version=v0.0.1 buildapp";\
 		exit 1;\
 	fi

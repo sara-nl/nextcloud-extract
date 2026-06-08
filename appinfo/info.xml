@@ -7,6 +7,8 @@
     <screenshot>https://raw.githubusercontent.com/PaulLereverend/NextcloudExtract/master/img/extract.png</screenshot>
     <description><![CDATA[Extract archives.
 
+* Originally developed by Paul Lereverend
+
 *  **Supported :**
 
     * Zip
@@ -31,13 +33,12 @@
 
     <version>1.5.0</version>
     <licence>agpl</licence>
-    <!-- moeten we dit niet aanpassen naar het emailadres van Surf? -->
-    <author mail="paulereverend@gmail.com">Paul Lereverend</author>
+    <author>SURF</author>
     <namespace>Extract</namespace>
     <category>files</category>
     <category>tools</category>
-    <website>https://github.com/PaulLereverend/NextcloudExtract</website>
-    <bugs>https://github.com/PaulLereverend/NextcloudExtract/issues</bugs>
+    <website>https://github.com/sara-nl/nextcloud-extract</website>
+    <bugs>https://github.com/sara-nl/nextcloud-extract/issues</bugs>
     <dependencies>
         <php min-version="8.2" max-version="8.5"/>
         <nextcloud min-version="31" max-version="34"/>
