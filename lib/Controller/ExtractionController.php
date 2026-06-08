@@ -2,12 +2,11 @@
 
 namespace OCA\Extract\Controller;
 
-// Only in order to access Filesystem::isFileBlacklisted().
-use OC\Files\Filesystem;
-
 use OCP\IRequest;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
+use OCP\Files\IFilenameValidator;
 use OCP\Files\NotFoundException;
 use OCP\Files\IRootFolder;
 use OCP\Files\Folder;
@@ -49,6 +48,9 @@ class ExtractionController extends Controller
 	/** @var IURLGenerator */
 	private IURLGenerator $urlGenerator;
 
+	/** @var IFilenameValidator */
+	private IFilenameValidator $filenameValidator;
+
 	/** @var Array $mimeTypes */
 	private Array $mimeTypes = [
 		"application/zip" => "zip",
@@ -57,6 +59,7 @@ class ExtractionController extends Controller
 		"application/x-7z-compressed" => "other",
 		"application/x-bzip2" => "other",
 		"application/x-deb" => "other",
+		"application/gzip" => "other",
 		"application/x-gzip" => "other",
 		"application/x-compressed" => "other"
 	];
@@ -69,18 +72,20 @@ class ExtractionController extends Controller
 		IL10N $l,
 		LoggerInterface $logger,
 		IManager $encryptionManager,
-		$UserId,
+		?string $userId,
 		IURLGenerator $urlGenerator,
+		IFilenameValidator $filenameValidator,
 	) {
 		parent::__construct($AppName, $request);
 		$this->l = $l;
 		$this->logger = $logger;
 		$this->encryptionManager = $encryptionManager;
-		$this->userId = $UserId;
+		$this->userId = $userId;
 		$this->extractionService = $extractionService;
 		$this->rootFolder = $rootFolder;
 		$this->userFolder = $this->rootFolder->getUserFolder($this->userId);
 		$this->urlGenerator = $urlGenerator;
+		$this->filenameValidator = $filenameValidator;
 	}
 
 	private function getFile($directory, $fileName)
@@ -108,8 +113,8 @@ class ExtractionController extends Controller
 		$iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($extractTo));
 		foreach ($iterator as $file) {
 			/** @var \SplFileInfo $file */
-			if (Filesystem::isFileBlacklisted($file->getBasename())) {
-				$this->logger->warning(__METHOD__ . ': removing blacklisted file: ' . $file->getPathname());
+			if (!$this->filenameValidator->isFilenameValid($file->getBasename())) {
+				$this->logger->warning(__METHOD__ . ': removing forbidden file: ' . $file->getPathname());
 				// remove it
 				unlink($file->getPathname());
 			}
@@ -126,10 +131,9 @@ class ExtractionController extends Controller
 	}
 
 	/**
-	 * The only AJAX callback. This is a hook for ordinary cloud-users, os no admin required.
-	 *
-	 * @NoAdminRequired
+	 * The only AJAX callback. This is a hook for ordinary cloud-users, so no admin required.
 	 */
+	#[NoAdminRequired]
 	public function extract($nameOfFile, $directory, $external, $mime)
 	{
 		$type = $this->mimeTypes[$mime];
