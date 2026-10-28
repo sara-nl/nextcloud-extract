@@ -1,0 +1,62 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    # Weekly run against the newest Nextcloud release, to notice early when a new version breaks the app
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest and highest PHP version in info.xml
+        php: ['8.2', '8.5']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - run: find appinfo lib templates -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The built files in js/ are committed, they have to match the sources
+      - run: git diff --exit-code js
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        nextcloud: ['34', '35']
+    steps:
+      - uses: actions/checkout@v7
+      - run: tests/e2e/run-docker.sh ${{ matrix.nextcloud }}
+
+  e2e-latest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: tests/e2e/run-docker.sh latest
+        env:
+          # The newest release can be newer than max-version in info.xml
+          FORCE_ENABLE: '1'
