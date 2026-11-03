@@ -65,7 +65,7 @@ class ExtractionController extends Controller
 	];
 
 	public function __construct(
-		string $AppName,
+		string $appName,
 		IRequest $request,
 		ExtractionService $extractionService,
 		IRootFolder $rootFolder,
@@ -76,7 +76,7 @@ class ExtractionController extends Controller
 		IURLGenerator $urlGenerator,
 		IFilenameValidator $filenameValidator,
 	) {
-		parent::__construct($AppName, $request);
+		parent::__construct($appName, $request);
 		$this->l = $l;
 		$this->logger = $logger;
 		$this->encryptionManager = $encryptionManager;
@@ -110,7 +110,7 @@ class ExtractionController extends Controller
 	private function postExtract(string $fileName, string $directory, string $extractTo, ?string $tmpPath)
 	{
 
-		$iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($extractTo));
+		$iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($extractTo, \FilesystemIterator::SKIP_DOTS));
 		foreach ($iterator as $file) {
 			/** @var \SplFileInfo $file */
 			if (!$this->filenameValidator->isFilenameValid($file->getBasename())) {
